@@ -80,7 +80,7 @@ Automatic skill selection is explicitly enabled in `agents/openai.yaml`. To appl
 
 Preserve existing instructions and add the block only once. If a nonempty `AGENTS.override.md` exists there, Codex uses it instead; put the block in that active file. The installer deliberately leaves these personal instructions untouched.
 
-This default applies the skill's guidance without an extra paid classification or Jev call on every message. Explicit user choices take precedence. It does not switch the current desktop model or create additional chats. Start a new chat if updated global instructions are not yet loaded.
+The global instruction block and skill are kept short to limit context use. With `o200k_base` as an approximation, they measure about 183 and 448 tokens respectively; the actual model token count and billed amount may differ. This default applies the skill's guidance without an extra paid classification or Jev call on every message. Explicit user choices take precedence. It does not switch the current desktop model or create additional chats. Start a new chat if updated global instructions are not yet loaded.
 
 ## Usage
 
