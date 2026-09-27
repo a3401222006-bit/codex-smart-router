@@ -70,6 +70,18 @@ node "$HOME/.agents/skills/codex-smart-router/scripts/router.mjs" --route --json
 
 The same direct Node command works on macOS. Linux also uses the shared core and POSIX launcher.
 
+## Use the skill by default globally
+
+Automatic skill selection is explicitly enabled in `agents/openai.yaml`. To apply the routing guidance to every new task without naming the skill, copy the marked block from [examples/global-AGENTS.md](examples/global-AGENTS.md) into your Codex user instructions:
+
+- macOS: `~/.codex/AGENTS.md`
+- Windows: `$HOME/.codex/AGENTS.md`
+- If `CODEX_HOME` is customized, use `AGENTS.md` inside that directory.
+
+Preserve existing instructions and add the block only once. If a nonempty `AGENTS.override.md` exists there, Codex uses it instead; put the block in that active file. The installer deliberately leaves these personal instructions untouched.
+
+This default applies the skill's guidance without an extra paid classification or Jev call on every message. Explicit user choices take precedence. It does not switch the current desktop model or create additional chats. Start a new chat if updated global instructions are not yet loaded.
+
 ## Usage
 
 From a checkout, macOS/Linux can run `./bin/codex-smart`; Windows can run `./bin/codex-smart.ps1`. All options are also available through the skill's `scripts/router.mjs`.
