@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex Smart Router"
+  short_description: "Choose GPT-6 models and effort across desktop and CLI"
+  default_prompt: "Use $codex-smart-router to recommend a model and reasoning effort for my task."
