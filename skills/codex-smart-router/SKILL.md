@@ -20,7 +20,9 @@ These are starting heuristics, not benchmark guarantees. Consider complexity and
 
 ## Desktop ChatGPT / Codex
 
-Give a concise recommendation and reason directly; no extra API call is necessary for an ordinary recommendation. This skill cannot change the current chat's model picker. If switching is useful, tell the user which picker setting to choose; do not claim that a recommendation performed a switch. Continue authorized work when useful with the current model.
+Reassess the model at each substantive task boundary in an ongoing chat, and when new evidence makes the current task materially harder or easier (for example, a routine fix expands into cross-module diagnosis, or the hard part is finished and only formatting remains). Compare the task with the current model and effort when those settings are available. Proactively give one concise upgrade or downgrade recommendation only when it would materially improve quality or cost; include the target model, effort, and reason. Do not repeat an unchanged recommendation or spend an extra classifier call on each turn. Respect explicit model choices and a request to stop suggestions.
+
+The skill cannot change the current desktop chat's model picker. When a switch is useful, tell the user the setting to choose in the model picker or via `/model` and `/reasoning` where available. Do not claim that a recommendation performed a switch. Continue authorized work with the current model unless the user directs otherwise. If the current model is not visible, describe the recommendation conditionally rather than claiming a mismatch.
 
 If the user requests a measured routing pass, run `node <skill-dir>/scripts/router.mjs --route --json "task"`. This calls the authenticated Codex CLI once and consumes Codex usage. It does not run the task. If local execution or CLI access is unavailable, provide the recommendation inline and disclose that it was not CLI-verified. Do not create chats or spawn agents merely to implement routing.
 

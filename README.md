@@ -111,7 +111,7 @@ The installed skill is named **codex-smart-router**. In a new desktop chat, sele
 Use $codex-smart-router to choose an appropriate model and reasoning effort for this task.
 ```
 
-In desktop mode, the agent can recommend a model inline without an extra classifier call. If you request a live routing check, it runs the helper with `--route --json` using your authenticated CLI. The helper does not change the model of an existing desktop chat. Select the recommendation in the model picker yourself when appropriate. The skill does not create new chats or delegate tasks merely to change models.
+In desktop mode, the agent can recommend a model inline without an extra classifier call. It reassesses at each substantial task boundary in the same chat and when a task becomes materially harder or easier. It proactively suggests an upgrade or downgrade when the difference matters, without repeating the same advice every turn. If you request a live routing check, it runs the helper with `--route --json` using your authenticated CLI. The helper does not change the model of an existing desktop chat. Select the recommendation in the model picker yourself, or use `/model` and `/reasoning` when available. The agent continues the task while making the recommendation and does not create new chats or delegate tasks merely to change models.
 
 If the new skill is not discovered, start a fresh chat or restart the app. ChatGPT surfaces without local skills or command execution can still follow the guidance as text, but cannot run this local launcher. This repository does not install a web/mobile plugin or claim support for every ChatGPT account/surface.
 
