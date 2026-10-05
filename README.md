@@ -33,6 +33,19 @@ Routing works like an emergency department: the classifier only describes the ta
   - From 2.5 (an active security incident, account compromise, data loss, a needed system down): 6.1 Sol / max, or GPT-6 Astra / max for security work. Astra leads 6.1 Sol by a wide margin on hard security evaluations (ExploitBench novel-vulnerability port 39.0% vs 21.5%), even though its general score is only 1 point higher.
 - **Unsure classifier:** if it is unsure of kind or difficulty, the default `gpt-6.1-sol / medium` is used, and the stakes floor still applies.
 
+### Plan and goal modes (interactive Codex)
+
+Codex has two interactive modes: `/plan` designs before acting, and `/goal` keeps working toward a fixed objective, auditing evidence before it stops. Triage also returns a `mode`:
+
+| Mode | When | Why |
+| --- | --- | --- |
+| normal | difficulty below 2, or stakes 2.5+ | Small tasks need neither. An emergency stays hands-on, step by step, rather than running autonomously. |
+| plan | difficulty 2+, no checkable finish line | Pin down scope and a finish condition first ("optimise the code", "design the architecture", "the login button does nothing"). |
+| goal | difficulty 2+, a checkable finish line (`clear_done` 0.7+) | e.g. "…until pytest passes", "…verified by tests/test_capture.py". |
+| plan-then-goal | as goal, but stakes 1.6+ | Review the plan before letting it run. |
+
+`clear_done` is a Jev noul (or a Luna boolean): does the task state a finish condition someone could verify objectively? Ask it with one task per request; batching several tasks into one state blurs the answers. Modes are recommendations; this helper does not switch modes for you.
+
 Example decisions with Jev:
 
 | Task | Route | Why |

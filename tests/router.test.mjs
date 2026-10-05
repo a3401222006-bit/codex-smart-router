@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { ROUTES, FALLBACK, LUNA_ROUTER, parseArgs, selectRoute, routingPrompt, triage, jevQuestions, KINDS } from '../scripts/router.mjs';
+import { ROUTES, FALLBACK, LUNA_ROUTER, parseArgs, selectRoute, routingPrompt, triage, chooseMode, jevQuestions, KINDS } from '../scripts/router.mjs';
 
 // Fake Codex run: writes `reply` to the -o file the router passes.
 const fakeRun = (reply, status = 0) => (_cmd, args) => {
@@ -9,14 +9,14 @@ const fakeRun = (reply, status = 0) => (_cmd, args) => {
   return { status };
 };
 // Fake Jev response with the given features.
-const fakeJev = ({ kind, difficulty, stakes, kc = 0.9, dc = 0.9 }, status = 200) => async (url, init) => {
+const fakeJev = ({ kind, difficulty, stakes, done = 0, kc = 0.9, dc = 0.9 }, status = 200) => async (url, init) => {
   assert.equal(url, 'https://api.typesafe.ai/v1/systemone');
   assert.match(init.headers.Authorization, /^Bearer /);
   return { ok: status === 200, status, json: async () => ({ answers: {
-    kind: { choice: kind, confidence: kc }, difficulty: { score: difficulty, confidence: dc }, stakes: { score: stakes } } }) };
+    kind: { choice: kind, confidence: kc }, difficulty: { score: difficulty, confidence: dc }, stakes: { score: stakes }, clear_done: { noul: done } } }) };
 };
 const noLuna = () => { throw new Error('Luna must not be called'); };
-const T = (kind, difficulty, stakes, extra = {}) => { const { reasons, ...r } = triage({ kind, difficulty, stakes, ...extra }); return r; };
+const T = (kind, difficulty, stakes, extra = {}) => { const { reasons, mode, ...r } = triage({ kind, difficulty, stakes, ...extra }); return r; };
 
 test('routing table is a strict cost-efficiency frontier', () => {
   for (let i = 1; i < ROUTES.length; i++) {
@@ -88,11 +88,25 @@ test('explicit choice is respected, with a warning when off the frontier', async
 test('Luna prompt and Jev questions share the same features', () => {
   const p = routingPrompt('task');
   for (const k of Object.keys(KINDS)) assert.match(p, new RegExp(`- ${k}:`));
-  assert.deepEqual(Object.keys(jevQuestions()), ['kind', 'difficulty', 'stakes']);
+  assert.deepEqual(Object.keys(jevQuestions()), ['kind', 'difficulty', 'stakes', 'clear_done']);
   assert.throws(() => parseArgs(['--router', 'gpt', 'x']), /jev or luna/);
 });
 
 test('SKILL.md table matches ROUTES', () => {
   const skill = readFileSync(new URL('../SKILL.md', import.meta.url), 'utf8');
   for (const r of ROUTES) assert.ok(skill.includes(`${r.model} / ${r.effort}`), `${r.model} / ${r.effort} missing in SKILL.md`);
+});
+
+test('mode: plan for vague hard work, goal only with a checkable finish line, never in an emergency', () => {
+  assert.equal(chooseMode({ difficulty: 0.5, stakes: 0.2, clearDone: 0.9 }), 'normal');          // small task
+  assert.equal(chooseMode({ difficulty: 3, stakes: 1, clearDone: 0.1 }), 'plan');                // "design the architecture"
+  assert.equal(chooseMode({ difficulty: 2.5, stakes: 1, clearDone: 0.88 }), 'goal');             // "...until pytest passes"
+  assert.equal(chooseMode({ difficulty: 2.5, stakes: 2, clearDone: 0.88 }), 'plan-then-goal');   // high stakes: review the plan
+  assert.equal(chooseMode({ difficulty: 3, stakes: 2.9, clearDone: 0.9 }), 'normal');            // emergency: stay hands-on
+});
+
+test('Jev clear_done reaches the mode', async () => {
+  const r = await selectRoute(parseArgs(['task']), null,
+    { env: { TYPESAFE_API_KEY: 'k' }, fetchFn: fakeJev({ kind: 'coding', difficulty: 2.6, stakes: 1, done: 0.9 }), run: noLuna });
+  assert.equal(r.mode, 'goal');
 });

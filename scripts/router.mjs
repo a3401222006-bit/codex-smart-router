@@ -69,7 +69,7 @@ export const STAKES_CRITICAL = 2.5;
 // Like emergency triage: difficulty picks the starting route, stakes set a floor it may not go below.
 // GPT-6 Astra is reserved for critical security work, where it leads 6.1 Sol by a wide margin
 // (novel-vulnerability ExploitBench port 39.0% vs 21.5%, ExploitGym 42.4% vs 35.1%).
-export function triage({ kind, difficulty, stakes, kindConfidence = 1, difficultyConfidence = 1 }) {
+export function triage({ kind, difficulty, stakes, clearDone = 0, kindConfidence = 1, difficultyConfidence = 1 }) {
   if (!Object.hasOwn(KINDS, kind) || !Number.isFinite(difficulty) || !Number.isFinite(stakes)) {
     throw new Error('Invalid triage features');
   }
@@ -94,8 +94,24 @@ export function triage({ kind, difficulty, stakes, kindConfidence = 1, difficult
     route = floor;
     reasons.push(`stakes ${stakes.toFixed(1)} → floor ${floor.model}/${floor.effort}`);
   }
-  return { ...route, reasons };
+  return { ...route, mode: chooseMode({ difficulty, stakes, clearDone }), reasons };
 }
+
+// Interactive Codex modes. /plan designs before acting; /goal keeps working toward a fixed
+// objective and audits evidence before stopping. Goals need a checkable finish line, and an
+// emergency should stay hands-on rather than run autonomously.
+export const CLEAR_DONE = 0.7;
+export function chooseMode({ difficulty, stakes, clearDone }) {
+  if (stakes >= STAKES_CRITICAL || difficulty < 2) return 'normal';
+  if (clearDone >= CLEAR_DONE) return stakes >= STAKES_HIGH ? 'plan-then-goal' : 'goal';
+  return 'plan';
+}
+export const MODE_HINT = {
+  normal: 'just send the task',
+  plan: 'start with /plan to pin down scope and a checkable finish line',
+  goal: 'start with /goal <task>; it keeps going until the finish condition is met',
+  'plan-then-goal': 'review a /plan first (high stakes), then run it as /goal',
+};
 
 const HELP = `Usage: codex-smart [options] <task>
   --route                 Recommend only; do not launch the task
@@ -186,6 +202,7 @@ difficulty — reasoning effort a capable AI coding assistant needs to do it cor
 ${levels(DIFFICULTY)}
 stakes — how serious and urgent it is if the task is done wrongly:
 ${levels(STAKES)}
+clear_done — true only if the task states a checkable finish condition (named tests pass, a specific file or output exists).
 Do not raise difficulty solely because the input is long.
 Task as a JSON string:\n${JSON.stringify(task)}`;
 }
@@ -197,6 +214,10 @@ export function jevQuestions() {
       instructions: 'How much reasoning effort would a capable AI coding assistant need to complete `task` correctly?' },
     stakes: { type: 'score', criteria: STAKES,
       instructions: 'If `task` is done wrongly, how serious are the consequences, and how urgent is it?' },
+    clear_done: { type: 'noul',
+      instructions: 'Does `task` state a clear, checkable finish condition, such as named tests passing or a specific output being produced?',
+      criteria: { true: 'Someone could verify completion objectively, e.g. a test command, a file that must exist, an exact output',
+        false: 'Done-ness is a judgment call, vague, or not stated' } },
   };
 }
 
@@ -214,7 +235,8 @@ export async function classifyWithJev(task, { key, timeout, fetchFn = fetch }) {
   if (!res.ok) throw new Error(`Jev returned HTTP ${res.status}`);
   const { answers: a } = await res.json();
   return { kind: a.kind.choice, kindConfidence: a.kind.confidence,
-    difficulty: a.difficulty.score, difficultyConfidence: a.difficulty.confidence, stakes: a.stakes.score };
+    difficulty: a.difficulty.score, difficultyConfidence: a.difficulty.confidence, stakes: a.stakes.score,
+    clearDone: a.clear_done?.noul ?? 0 };
 }
 
 export function classifyWithLuna(task, cli, timeout, run = spawnSync) {
@@ -222,10 +244,11 @@ export function classifyWithLuna(task, cli, timeout, run = spawnSync) {
   try {
     const output = join(dir, 'route.json');
     const schema = join(dir, 'schema.json');
-    writeFileSync(schema, JSON.stringify({ type: 'object', additionalProperties: false, required: ['kind', 'difficulty', 'stakes'], properties: {
+    writeFileSync(schema, JSON.stringify({ type: 'object', additionalProperties: false, required: ['kind', 'difficulty', 'stakes', 'clear_done'], properties: {
       kind: { type: 'string', enum: Object.keys(KINDS) },
       difficulty: { type: 'integer', minimum: 0, maximum: DIFFICULTY.length - 1 },
       stakes: { type: 'integer', minimum: 0, maximum: STAKES.length - 1 },
+      clear_done: { type: 'boolean' },
     } }));
     const r = run(cli[0], [...cli.slice(1), 'exec', '--ephemeral', '--skip-git-repo-check',
       '-s', 'read-only', '-C', dir, '-m', LUNA_ROUTER.model, '-c', `model_reasoning_effort="${LUNA_ROUTER.effort}"`,
@@ -238,7 +261,7 @@ export function classifyWithLuna(task, cli, timeout, run = spawnSync) {
       if (r.error?.code === 'ETIMEDOUT') throw new Error('Routing timed out; no task was started.');
       throw new Error(`Routing failed (exit ${r.status ?? 'unavailable'}); no task was started. Check Codex login, model access, usage limits, network and CLI version. Raw CLI logs are withheld to avoid exposing task text or credentials.`);
     }
-    try { return JSON.parse(readFileSync(output, 'utf8')); } catch { return null; }
+    try { const f = JSON.parse(readFileSync(output, 'utf8')); return { ...f, clearDone: f.clear_done ? 1 : 0 }; } catch { return null; }
   } finally { rmSync(dir, { recursive: true, force: true }); }
 }
 
@@ -264,7 +287,7 @@ export async function selectRoute(o, cli, { env = process.env, fetchFn = fetch, 
     const { reasons, ...route } = triage(features || {});
     return { ...route, source, features, reasons, ...(warning && { warning }) };
   } catch {
-    return { ...FALLBACK, source: 'fallback', warning: 'Invalid classifier response; using the default route.' };
+    return { ...FALLBACK, mode: 'normal', source: 'fallback', warning: 'Invalid classifier response; using the default route.' };
   }
 }
 
@@ -297,7 +320,10 @@ export async function main(args = process.argv.slice(2)) {
     // Jev routing needs no Codex CLI; Luna routing and launching do.
     const route = await selectRoute(o, cli);
     if (o.json) console.log(JSON.stringify(route));
-    else console.log(`codex-smart -> ${route.model} | ${route.effort} (${route.source}${route.reasons ? ': ' + route.reasons.join('; ') : ''})`);
+    else {
+      console.log(`codex-smart -> ${route.model} | ${route.effort} (${route.source}${route.reasons ? ': ' + route.reasons.join('; ') : ''})`);
+      if (route.mode && route.mode !== 'normal') console.log(`mode: ${route.mode} — ${MODE_HINT[route.mode]}`);
+    }
     if (route.warning) console.error(route.warning);
     if (o.route) return 0;
     const r = spawnSync(cli[0], [...cli.slice(1), '-m', route.model,

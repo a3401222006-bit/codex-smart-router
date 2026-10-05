@@ -34,6 +34,19 @@ Route like an emergency department: describe the task first, then let fixed rule
 3. **Stakes** (0 none – 3 critical emergency) set a floor that difficulty can never lower. At 1.6 or above (accounts, passwords, keys, network or system configuration, money, personal data, work to be submitted or deployed) use at least 6.1 Sol / high. At 2.5 or above (an active security incident or account compromise, data being lost, a needed system down) use 6.1 Sol / max, or GPT-6 Astra / max when the work is security. Astra's general score is only 1 point higher, but on security it leads by a wide margin (novel-vulnerability ExploitBench port 39.0% vs 21.5%, ExploitGym 42.4% vs 35.1%), and in an emergency a wrong first answer costs more than the extra usage.
 4. If the classifier is unsure of kind or difficulty (confidence below 0.5), use the default 6.1 Sol / medium; the stakes floor still applies.
 
+## Plan and goal modes (interactive Codex)
+
+Codex has two interactive modes: `/plan` designs before acting, and `/goal` keeps working toward a fixed objective, auditing evidence before it stops. Triage also returns a `mode`:
+
+| Mode | When | Why |
+| --- | --- | --- |
+| normal | difficulty below 2, or stakes 2.5+ | Small tasks need neither. An emergency stays hands-on, step by step, rather than running autonomously. |
+| plan | difficulty 2+, no checkable finish line | Pin down scope and a finish condition first ("optimise the code", "design the architecture", "the login button does nothing"). |
+| goal | difficulty 2+, a checkable finish line (`clear_done` 0.7+) | e.g. "…until pytest passes", "…verified by tests/test_capture.py". |
+| plan-then-goal | as goal, but stakes 1.6+ | Review the plan before letting it run. |
+
+`clear_done` is a Jev noul (or a Luna boolean): does the task state a finish condition someone could verify objectively? Ask it with one task per request; batching several tasks into one state blurs the answers. Modes are recommendations; this helper does not switch modes for you.
+
 Outside an emergency, start at the route triage gives and move up one row only when the result is empty, shallow or self-contradictory. Do not escalate because the input is long. Do not suggest GPT-6 Sol, GPT-5.6 models or Astra below max: a frontier row is always cheaper for the same score. Scores are general benchmark results, not a guarantee for a specific task, and actual plan usage may not scale with the cost column.
 
 Reassess at each substantive task boundary and when difficulty materially changes. Suggest an upgrade or downgrade only when quality or cost would change meaningfully; give the target model, effort and reason once. Do not run a classifier on every turn. Continue the task while suggesting a switch.
