@@ -1,0 +1,7 @@
+interface:
+  display_name: "Codex Smart Router"
+  short_description: "Pick the cheapest model that fits: GPT-6 Luna for light work, GPT-6.1 Sol for real tasks"
+  default_prompt: "Use $codex-smart-router to recommend a model and reasoning effort for my task."
+
+policy:
+  allow_implicit_invocation: true
